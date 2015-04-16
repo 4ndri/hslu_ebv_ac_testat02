@@ -33,48 +33,12 @@ void ResetProcess() {
 		TextColor = CYAN;
 }
 
-void ProcessFrame() {
-	uint32 t1, t2;
-	//initialize counters
-	if (data.ipc.state.nStepCounter == 1) {
-		//use for initialization; only done in first step
-		memset(data.u8TempImage[THRESHOLD], 0, IMG_SIZE);
-		TextColor = CYAN;
-	} else {
-		//example for time measurement
-		t1 = OscSupCycGet();
-		CalcDeriv();
-
-		for (int i = 0; i < 3; i++) {
-			AvgDeriv(i);
-		}
-		GetMc();
-		CopyImage(data.u8TempImage[BACKGROUND], mc);
-		GetLocalMax();
-		//example for time measurement
-		t2 = OscSupCycGet();
-
-		//example for log output to console
-		OscLog(INFO, "required = %d us\n", OscSupCycToMicroSecs(t2 - t1));
-
-		//example for drawing output
-		//draw line
-		//DrawLine(10, 100, 200, 20, RED);
-		//draw open rectangle
-		//DrawBoundingBox(20, 10, 50, 40, false, GREEN);
-		//draw filled rectangle
-		//DrawBoundingBox(80, 100, 110, 120, true, BLUE);
-		//DrawString(200, 200, strlen(Text), TINY, TextColor, Text);
-	}
-}
-
-void CopyImage(int copyFrom[], int copyTo[], int scaleExp2) {
+void CopyImage(int *copyFrom, uint8 *copyTo, int exp2) {
 	int c, r;
 	for (r = nc; r < nr * nc - nc; r += nc) {/* we skip the first and last line */
-			for (c = 1; c < nc - 1; c++) {
-				data.u8TempImage[THRESHOLD][r + c] = (uint8) MIN(255,
-									MAX(0, copyFrom[r + c]));
-			}
+		for (c = 1; c < nc - 1; c++) {
+			copyTo[r + c] = (uint8) MIN(255, MAX(0, (copyFrom[r + c]) >> exp2));
+		}
 	}
 }
 
@@ -187,5 +151,40 @@ void GetLocalMax() {
 						r / nc - sizebox, 0, GREEN);
 			}
 		}
+	}
+}
+
+void ProcessFrame() {
+	uint32 t1, t2;
+	//initialize counters
+	if (data.ipc.state.nStepCounter == 1) {
+		//use for initialization; only done in first step
+		memset(data.u8TempImage[THRESHOLD], 0, IMG_SIZE);
+		TextColor = CYAN;
+	} else {
+		//example for time measurement
+		t1 = OscSupCycGet();
+		CalcDeriv();
+
+		for (int i = 0; i < 3; i++) {
+			AvgDeriv(i);
+		}
+		GetMc();
+		//CopyImage(mc, data.u8TempImage[BACKGROUND], 8);
+		GetLocalMax();
+		//example for time measurement
+		t2 = OscSupCycGet();
+
+		//example for log output to console
+		OscLog(INFO, "required = %d us\n", OscSupCycToMicroSecs(t2 - t1));
+
+		//example for drawing output
+		//draw line
+		//DrawLine(10, 100, 200, 20, RED);
+		//draw open rectangle
+		//DrawBoundingBox(20, 10, 50, 40, false, GREEN);
+		//draw filled rectangle
+		//DrawBoundingBox(80, 100, 110, 120, true, BLUE);
+		//DrawString(200, 200, strlen(Text), TINY, TextColor, Text);
 	}
 }
