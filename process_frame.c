@@ -13,9 +13,9 @@
 #include <stdlib.h>
 
 #define IMG_SIZE NUM_COLORS*(OSC_CAM_MAX_IMAGE_WIDTH/2)*(OSC_CAM_MAX_IMAGE_HEIGHT/2)
-#define Border 6
+#define border 6
 #define scale 3
-#define SizeBox 4
+#define sizebox 4
 
 const int nc = OSC_CAM_MAX_IMAGE_WIDTH / 2;
 const int nr = OSC_CAM_MAX_IMAGE_HEIGHT / 2;
@@ -24,8 +24,6 @@ int TextColor;
 int avgDxy[3][IMG_SIZE];
 int helpBuf[IMG_SIZE];
 int mc[IMG_SIZE];
-int locMaxBuf[IMG_SIZE];
-int maxBin[IMG_SIZE];
 
 void ResetProcess() {
 	//called when "reset" button is pressed
@@ -51,9 +49,8 @@ void ProcessFrame() {
 			AvgDeriv(i);
 		}
 		CalcMc();
-		CopyIntBuffer(data.u8TempImage[BACKGROUND], mc, 10);
-		CalcLocMax();
-		CopyIntBuffer(data.u8TempImage[THRESHOLD], maxBin, 0);
+		CopyImage(data.u8TempImage[BACKGROUND], mc);
+		GetLocalMax();
 		//example for time measurement
 		t2 = OscSupCycGet();
 
@@ -71,9 +68,14 @@ void ProcessFrame() {
 	}
 }
 
-void CopyIntBuffer(unsigned char* dst, int* src, int scaleExp2) {
-	for (int i = 0; i < IMG_SIZE; i++)
-		*(dst + i) = (uint8) MIN(255, MAX(0, (*(src + i)) >> scaleExp2));
+void CopyImage(int copyFrom[], int copyTo[], int scaleExp2) {
+	int c, r;
+	for (r = nc; r < nr * nc - nc; r += nc) {/* we skip the first and last line */
+			for (c = 1; c < nc - 1; c++) {
+				data.u8TempImage[THRESHOLD][r + c] = (uint8) MIN(255,
+									MAX(0, copyFrom[r + c]));
+			}
+	}
 }
 
 void CalcDeriv() {
@@ -102,7 +104,7 @@ void AvgDeriv(int Index) {
 	int c, r;
 	for (r = nc; r < nr * nc - nc; r += nc) {
 		/* we skip first and last lines (empty) */
-		for (c = Border + 1; c < nc - (Border + 1); c++) {
+		for (c = border + 1; c < nc - (border + 1); c++) {
 			/* +1 because we have one empty border column */
 			/* do pointer arithmetics with respect to center pixel location */
 			int* p = &avgDxy[Index][r + c];
@@ -117,7 +119,7 @@ void AvgDeriv(int Index) {
 		}
 	}
 //do average in y-direction
-	for (r = (Border + 1) * nc; r < nr * nc - ((Border + 1) * nc); r += nc) {
+	for (r = (border + 1) * nc; r < nr * nc - ((border + 1) * nc); r += nc) {
 		/* we skip first and last lines (empty) */
 		for (c = 1; c < nc - 1; c++) {
 			/* +1 because we have one empty border column */
@@ -137,7 +139,7 @@ void AvgDeriv(int Index) {
 	}
 }
 
-void CalcMc() {
+void GetMc() {
 	for (int i = 0; i < IMG_SIZE; i++) {
 		mc[i] = (avgDxy[0][i] * avgDxy[1][i] - avgDxy[2][i] * avgDxy[2][i])
 				- 5
@@ -146,39 +148,43 @@ void CalcMc() {
 	}
 }
 
-void CalcLocMax() {
+int GetMCMax() {
+	int max = 0;
+
+	for (int i = 0; i < IMG_SIZE; i++) {
+		max = MAX(max, mc[i]);
+	}
+	return max;
+}
+
+void GetLocalMax() {
+	int tmp[IMG_SIZE];
+	int tmpBin[IMG_SIZE];
 	memset(helpBuf, 0, IMG_SIZE * sizeof(int));
-	memset(locMaxBuf, 0, IMG_SIZE * sizeof(int));
-	memset(maxBin, 0, IMG_SIZE * sizeof(int));
+	memset(tmp, 0, IMG_SIZE * sizeof(int));
+	memset(tmpBin, 0, IMG_SIZE * sizeof(int));
+
+	int max = GetMCMax();
+	int thresh;
+	thresh = (max * data.ipc.state.nThreshold) / 100;
 	int c, r;
-	int globalMaxMC = 0;
-	int absThreshold;
-// find global max mc
-	for (int i = 0; i < IMG_SIZE; i++)
-		globalMaxMC = MAX(globalMaxMC, mc[i]);
-	absThreshold = (globalMaxMC * data.ipc.state.nThreshold) / 100;
-// x-direction
 	for (r = nc; r < nr * nc - nc; r += nc) {
-		for (c = Border + 1; c < nc - (Border + 1); c++) {
+		for (c = border + 1; c < nc - (border + 1); c++) {
 			int* p = &mc[r + c];
 			for (int i = -6; i <= 6; i++)
 				helpBuf[r + c] = MAX(*(p + i), helpBuf[r + c]);
 		}
 	}
-//y-direction
-	for (r = (Border + 1) * nc; r < nr * nc - ((Border + 1) * nc); r += nc) {
-		/* we skip first and last lines (empty) */
+
+	for (r = (border + 1) * nc; r < nr * nc - ((border + 1) * nc); r += nc) {
 		for (c = 1; c < nc - 1; c++) {
 			int* p = &helpBuf[r + c];
 			for (int i = -6 * nc; i <= 6 * nc; i += nc)
-				locMaxBuf[r + c] = MAX(*(p + i), locMaxBuf[r + c]);
-			if (locMaxBuf[r + c] == mc[r + c]) {
-// is candidate, now check threshold
-				if (mc[r + c] > absThreshold) {
-					maxBin[r + c] = 255;
-					DrawBoundingBox(c - SizeBox, r / nc + SizeBox, c + SizeBox,
-							r / nc - SizeBox, 0, GREEN);
-				}
+				tmp[r + c] = MAX(*(p + i), tmp[r + c]);
+			if (tmp[r + c] == mc[r + c] && mc[r + c] > thresh) {
+				tmpBin[r + c] = 255;
+				DrawBoundingBox(c - sizebox, r / nc + sizebox, c + sizebox,
+						r / nc - sizebox, 0, GREEN);
 			}
 		}
 	}
