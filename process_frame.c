@@ -48,7 +48,7 @@ void ProcessFrame() {
 		for (int i = 0; i < 3; i++) {
 			AvgDeriv(i);
 		}
-		CalcMc();
+		GetMc();
 		CopyImage(data.u8TempImage[BACKGROUND], mc);
 		GetLocalMax();
 		//example for time measurement
