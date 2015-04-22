@@ -14,7 +14,7 @@
 
 #define IMG_SIZE NUM_COLORS*(OSC_CAM_MAX_IMAGE_WIDTH/2)*(OSC_CAM_MAX_IMAGE_HEIGHT/2)
 #define border 6
-#define scale 3
+#define scale 4
 #define sizebox 4
 
 const int nc = OSC_CAM_MAX_IMAGE_WIDTH / 2;
